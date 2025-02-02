@@ -1,0 +1,96 @@
+Create the mode 
+Serializes the model
+register them in the admin
+Implement filtering by installing django-filter, add to install apps and put it in the REST_FRAMEWORK in settings.py
+Create a superuser, login as admin and add data to the data base Populate the  database
+Implement pagination
+Now let implement authentication, add 'rest_framework.authtoken' in settings to implement token-based auth
+We add a default auth token method in the setting.py file
+We add setting for throttling and implement it
+Let install Djoser to implement auth, added it to the project level URLs
+Djoser endpoints
+_______________________
+/users/
+/users/me/
+users/confirm/
+/users/resend_activation/
+/users/set_password/
+/users/reset_password/
+/users/reset_password/confirm
+/users/set_username/
+/users/reset_username
+/users/reset_username_confirm/
+/token/login/
+/token/logout/
+
+To make use of this endpoints add the to the  project level urls file
+To enforce permission to view , 'rest_framework.permissions.IsAuthenticated', in the settings.py and 
+
+{ for sheriff
+	"auth_token": 05e7192e89b4b51a076dec2392e3aa480ed74de0
+
+{hp admin
+	"auth_token": "a574a2114719c92c998c8f617edcd9ae2280cbc7"
+}
+
+496552a52c6a1820cc7adcf58f4412dfd8edbe38 customer 1.
+
+
+{malik
+	"auth_token": "4d9fc442ca1f6ad5b5e089984437fa75329beb2f"
+}
+
+Here’s the step-by-step plan for implementing the API, in the order you should code them:
+
+1. Implement Authentication & User Management
+Set up Djoser for user registration and token authentication.
+Create the necessary URLs for:
+/api/users/ → Register users
+/api/users/me/ → Retrieve current user
+/token/login/ → Generate authentication tokens
+2. Implement Role-Based Access Control
+Define user groups in Django:
+Manager → Can manage menu items, users, and orders
+Delivery Crew → Can see assigned orders and update order status
+Customer → Can browse menu, place orders
+Create endpoints for managing user groups:
+/api/groups/manager/users/
+/api/groups/delivery-crew/users/
+3. Complete Menu Items Endpoints
+Customers & Delivery Crew:
+Can only view menu items (GET /api/menu-items/)
+Managers:
+Can create (POST), update (PUT/PATCH), and delete (DELETE) menu items.
+4. Implement Cart Management
+Customers only can:
+View their cart (GET /api/cart/menu-items/)
+Add items to cart (POST /api/cart/menu-items/)
+Clear the cart (DELETE /api/cart/menu-items/)
+5. Implement Order Management
+Customers:
+View their orders (GET /api/orders/)
+Place orders (moves items from cart to order) (POST /api/orders/)
+Managers:
+View all orders (GET /api/orders/)
+Assign delivery crew & update order status (PUT/PATCH /api/orders/{orderId}/)
+Delete an order (DELETE /api/orders/{orderId}/)
+Delivery Crew:
+View assigned orders (GET /api/orders/)
+Update order status (PATCH /api/orders/{orderId}/)
+6. Implement Filtering, Pagination & Sorting
+Add filtering, searching, and ordering to:
+/api/menu-items/ (Filter by category, price, etc.)
+/api/orders/ (Filter by status, date, etc.)
+Add pagination for large datasets.
+7. Implement Throttling
+Set different request limits for:
+Authenticated users
+Anonymous users
+Ensure API security and prevent abuse.
+Final Step: Testing & Debugging
+Write unit tests for API endpoints.
+Test with Postman or Django Admin Panel.
+Fix bugs and ensure proper status codes are returned.
+Next Step for You
+✅ Step 1: Set up authentication & user management using Djoser
+Start by installing and configuring Djoser. Let me know if you need guidance! 🚀
