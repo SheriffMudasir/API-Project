@@ -1,4 +1,4 @@
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 from rest_framework import viewsets, filters
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
@@ -10,7 +10,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from .permissions import IsManagerOnly, IsManagerDeliverycrewOwner
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework import status
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User, Group
 
 
 
@@ -91,17 +91,79 @@ from django.contrib.auth.models import User
 from rest_framework import serializers
 
 # /api/groups/manager/users
-@api_view(['GET', 'POST'])
+@api_view(['GET', 'POST', 'DELETE'])
 @permission_classes([IsAuthenticated, IsManagerOnly])
-def get_managers(request):
+def get_managers(request, pk=None):
     if request.method == 'GET':
         if request.user.groups.filter(name='Manager').exists():
-            managers = User.objects.filter(groups__name="Manager")
-            manager_data = [
-                {'id': manager.id, 'username':manager.username, 'email':manager.email} for manager in managers
-            ]
-            return Response({'managers': manager_data})
-        
-        return Response(
+            if pk:
+                try:
+                    manager = User.objects.get(id=pk, groups__name="Manager")
+                    manager_data = {
+                        'id': manager.id,
+                        'username':manager.username,
+                        'email':manager.email
+                    }
+                    return Response({'manager': manager_data})
+                except User.DoesNotExist:
+                    return Response(
+                        {'error':'Manager not fount'}, status=status.HTTP_404_NOT_FOUND
+                    )
+            else:
+                managers = User.objects.filter(groups__name="Manager")
+                manager_data = [
+                    {'id': manager.id, 'username':manager.username, 'email':manager.email} for manager in managers
+                ]
+                return Response({'managers': manager_data})
+    if request.method == 'POST':
+        username = request.data.get('username')
+        password = request.data.get('password')
+        email = request.data.get('email')
+        if not username or not password:
+            return Response(
+                {'error': 'Please provide username, password and email'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            user, created = User.objects.get_or_create(username=username, defaults={'email': email})
+            if created:
+                user.set_password(password)
+                user.save()
+            manager_group = Group.objects.get(name='Manager')  
+            user.groups.add(manager_group)
+            return Response(
+                {'success': 'User assigned to manager group successfully'}, 
+                status=status.HTTP_201_CREATED
+            )
+        except Group.DoesNotExist:
+            return Response(
+                {'error': 'Manager group does not exist'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {'error': 'User cannot be added currently. Try again!'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+    if request.method == 'DELETE':
+        if request.user.groups.filter(name='Manager').exists():
+            if pk:
+                try:
+                    user = get_object_or_404(User, id=pk)
+                    manager = Group.objects.get(name='Manager')
+                    user.groups.remove(manager)
+                    return Response(
+                        {'sucess':'user removed from manager group'}, status=status.HTTP_201_CREATED
+                    )
+                except User.DoesNotExist:
+                    return Response(
+                        {'error': 'user does not exist as a manger'}, status=status.HTTP_404_NOT_FOUND
+                    )
+            else:
+                return Response(
+                    {'error': 'Please provide a userID to remove'}, status=status.HTTP_400_BAD_REQUEST
+                )
+    return Response(
             {'error':'You do not have access to view this page'}, status=status.HTTP_403_FORBIDDEN
         )

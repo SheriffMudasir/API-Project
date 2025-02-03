@@ -15,6 +15,7 @@ urlpatterns = [
     path('api-token-auth/', obtain_auth_token),
     path('users/', views.create_new_user),
     path('groups/manager/users/', views.get_managers),
+    path('groups/manager/users/<int:pk>/', views.get_managers),
 ]
 
 
