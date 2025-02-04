@@ -17,6 +17,7 @@ from django.contrib.auth.models import User, Group
 
 
 
+
 class MenuPagination(PageNumberPagination):
     page_size = 2
     page_size_query_param  = 'perpage'
@@ -84,11 +85,7 @@ def create_new_user(request):
             {'error':'Unable to create user'}, 
             status=status.HTTP_400_BAD_REQUEST
         )
-# /api/users/users/me/
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
-from django.contrib.auth.models import User
-from rest_framework import serializers
+
 
 # /api/groups/manager/users
 @api_view(['GET', 'POST', 'DELETE'])
@@ -167,3 +164,75 @@ def get_managers(request, pk=None):
     return Response(
             {'error':'You do not have access to view this page'}, status=status.HTTP_403_FORBIDDEN
         )
+    
+# /api/groups/delivery-crew/users
+@api_view(['GET', 'POST', 'DELETE'])
+@permission_classes([IsAuthenticated, IsManagerOnly])
+def get_delivery_crews(request, pk=None):
+    if request.method == "GET":
+        if request.user.groups.filter(name='Manager').exists():
+            if pk:
+                try:
+                    delivery_crew = User.objects.get(id=pk, groups__name='Delivery Crew')
+                    delivery_crew_data = {
+                        'id': delivery_crew.id,
+                        'username': delivery_crew.username,
+                        'email': delivery_crew.email
+                    }
+                    return Response({'delivery crew': delivery_crew_data})
+                except User.DoesNotExist:
+                    return Response({"error": "User does not exist i delivery crew list"}, status=status.HTTP_404_NOT_FOUND)
+            else:
+                delivery_crews = User.objects.filter(groups__name = 'Delivery Crew')
+            delivery_crew_data = [
+                {
+                    'id': delivery_crew.id,
+                    'username':delivery_crew.username,
+                    'email':delivery_crew.email} for delivery_crew in delivery_crews
+                ]
+            return Response({'delivery crews': delivery_crew_data})
+        return Response(
+            {'error': 'You  donot have permission to view delivery crew list'}, status=status.HTTP_403_FORBIDDEN
+        )
+    if request.method == "POST":
+        username = request.data.get('username')
+        password = request.data.get('password')
+        email = request.data.get('email')
+        if not username or not password:
+            return Response(
+                {'error': 'Please provide a username and password'}, status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            delivery_crew_group, _ = Group.objects.get_or_create(name="Delivery Crew")
+            user, created = User.objects.get_or_create(username=username, defaults={'email':email})
+            if created:
+                user.set_password(password)
+                user.save()
+            user.groups.add(delivery_crew_group)
+            return Response(
+                {'success':'user assigned to delivery crew successfully'}, status=status.HTTP_201_CREATED
+            )
+        except Exception as e:
+            return Response(
+                {'error': str(e)}, status=status.HTTP_400_BAD_REQUEST
+            )
+    if request.method == 'DELETE':
+        if request.user.groups.filter(name='Manager').exists():
+            if pk:
+                delivery_crew_group = Group.objects.get(name='Delivery Crew')
+                user = get_object_or_404(User, id=pk)
+                if not user.groups.filter(name="Delivery Crew").exists():
+                    return Response({'error':'User is not a delivery crew member'}, status=status.HTTP_404_NOT_FOUND)
+                user.groups.remove(delivery_crew_group)
+                return Response(
+                    {'success': 'User has been removed from delivery crew successfully'}, status=status.HTTP_200_OK
+                )
+            else:
+                return Response(
+                    {'error':'Please provide user id to be removed'}, status=status.HTTP_400_BAD_REQUEST
+                )
+        return Response(
+            {'error': 'You do not have permission to remove delivery crew members'}, 
+            status=status.HTTP_403_FORBIDDEN
+        )
+    
