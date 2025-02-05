@@ -11,6 +11,7 @@ from .permissions import IsManagerOnly, IsManagerDeliverycrewOwner
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework import status
 from django.contrib.auth.models import User, Group
+from decimal import Decimal
 
 
 
@@ -235,4 +236,69 @@ def get_delivery_crews(request, pk=None):
             {'error': 'You do not have permission to remove delivery crew members'}, 
             status=status.HTTP_403_FORBIDDEN
         )
-    
+        
+        
+        
+# /api/cart/menu-items
+@api_view(['GET', 'POST', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def cart_items(request):
+    if request.method == 'GET':
+        try:
+            cart_content = Cart.objects.filter(user=request.user)
+            if cart_content.exists():
+                serializer = CartSerializers(cart_content, many=True)
+                return Response({'items': serializer.data}, status=status.HTTP_200_OK)
+            return Response({'message': 'Cart is empty'}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            
+    elif request.method == 'POST':
+        menuitem_id = request.data.get('menuitem')
+        quantity = int(request.data.get('quantity', 1)) 
+        
+        if not menuitem_id:
+            return Response(
+                {'error': 'menuitem ID is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        try:
+            menuitem = MenuItem.objects.get(id=menuitem_id)
+            unit_price = menuitem.price
+            price = unit_price * Decimal(str(quantity)) 
+            
+            cart_item, created = Cart.objects.get_or_create(
+                user=request.user,
+                menuitem=menuitem,
+                defaults={
+                    'quantity': quantity,
+                    'unit_price': unit_price,
+                    'price': price
+                }
+            )
+            
+            if not created:
+                cart_item.quantity += quantity
+                cart_item.price = cart_item.unit_price * Decimal(str(cart_item.quantity))
+                cart_item.save()
+                
+            return Response({'message': 'Item added to cart'}, status=status.HTTP_201_CREATED)
+            
+        except MenuItem.DoesNotExist:
+            return Response(
+                {'error': f'MenuItem with id {menuitem_id} does not exist'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to add item to cart: {str(e)}'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+    elif request.method == 'DELETE':
+        try:
+            Cart.objects.filter(user=request.user).delete()
+            return Response({'message': 'Cart emptied'}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)

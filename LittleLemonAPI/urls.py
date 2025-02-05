@@ -6,9 +6,6 @@ from rest_framework.authtoken.views import obtain_auth_token
 
 router = DefaultRouter()
 router.register(r"menu-items", views.MenuItemsView, basename = 'menu-items')
-router.register(r"order", views.OrderView, basename= "order")
-router.register(r"cart", views.CartView, basename= "cart")
-router.register(r"order-items", views.OrderItemView, basename= "order-items")
 router.register(r"category", views.CategoryView, basename= "category")
 urlpatterns = [
     path('', include(router.urls)),
@@ -18,6 +15,8 @@ urlpatterns = [
     path('groups/manager/users/<int:pk>/', views.get_managers),
     path('groups/delivery-crew/users/', views.get_delivery_crews),
     path('groups/delivery-crew/users/<int:pk>/', views.get_delivery_crews),
+    path('cart/menu-items/', views.cart_items),
+    path('cart/menu-items/<int:pk>/', views.cart_items),
 ]
 
 
