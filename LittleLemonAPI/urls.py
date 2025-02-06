@@ -7,6 +7,7 @@ from rest_framework.authtoken.views import obtain_auth_token
 router = DefaultRouter()
 router.register(r"menu-items", views.MenuItemsView, basename = 'menu-items')
 router.register(r"category", views.CategoryView, basename= "category")
+router.register(r"orders", views.OrderView, basename="orders")
 urlpatterns = [
     path('', include(router.urls)),
     path('api-token-auth/', obtain_auth_token),

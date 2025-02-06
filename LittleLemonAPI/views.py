@@ -8,7 +8,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from .permissions import IsManagerOnly, IsManagerDeliverycrewOwner
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework import status
 from django.contrib.auth.models import User, Group
 from decimal import Decimal
@@ -182,7 +182,7 @@ def get_delivery_crews(request, pk=None):
                     }
                     return Response({'delivery crew': delivery_crew_data})
                 except User.DoesNotExist:
-                    return Response({"error": "User does not exist i delivery crew list"}, status=status.HTTP_404_NOT_FOUND)
+                    return Response({"error": "User does not exist in delivery crew list"}, status=status.HTTP_404_NOT_FOUND)
             else:
                 delivery_crews = User.objects.filter(groups__name = 'Delivery Crew')
             delivery_crew_data = [
@@ -265,22 +265,15 @@ def cart_items(request):
             
         try:
             menuitem = MenuItem.objects.get(id=menuitem_id)
-            unit_price = menuitem.price
-            price = unit_price * Decimal(str(quantity)) 
             
             cart_item, created = Cart.objects.get_or_create(
                 user=request.user,
                 menuitem=menuitem,
-                defaults={
-                    'quantity': quantity,
-                    'unit_price': unit_price,
-                    'price': price
-                }
+                defaults={'quantity': quantity}
             )
             
             if not created:
                 cart_item.quantity += quantity
-                cart_item.price = cart_item.unit_price * Decimal(str(cart_item.quantity))
                 cart_item.save()
                 
             return Response({'message': 'Item added to cart'}, status=status.HTTP_201_CREATED)
@@ -302,3 +295,78 @@ def cart_items(request):
             return Response({'message': 'Cart emptied'}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        
+        
+        
+
+class OrderView(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [AnonRateThrottle, UserRateThrottle]
+    
+    def list(self, request):
+        user = request.user
+        if user.groups.filter(name="Manager").exists():
+            orders = Order.objects.all()
+        elif user.groups.filter(name="Delivery Crew").exists():
+            orders = Order.objects.filter(delivery_crew=user)
+        else:
+            orders = Order.objects.filter(user=user)
+        serializers = OrderSerializers(orders, many=True)
+        return Response(serializers.data, status=status.HTTP_200_OK)
+    
+    def create(self, request):
+        user = request.user
+        cart_items = Cart.objects.filter(user=user)
+        if not cart_items.exists():
+            return Response({'message': 'Cart is empty'}, status=status.HTTP_400_BAD_REQUEST)
+        order = Order.objects.create(user=user, staatus=0)
+        
+        for item in cart_items:
+            OrderItem.objects.create(
+                order=order,
+                menuitem=item.menuitem,
+                quantity=item.quantity,
+                unit_price=item.unit_price,
+                price=item.price,
+            )    
+        cart_items.delete()
+        
+        return Response(OrderSerializers(order).data, status=status.HTTP_201_CREATED)
+    
+    def retrieve(self, request, pk=None):
+        order = get_object_or_404(Order, id=pk)
+        
+        if request.user == order.user or request.user.groups.filter(name="Manager").exists():
+            serializers = OrderSerializers(order)
+            return Response(serializers.data, status=status.HTTP_200_OK)
+        return Response({'error': 'Unauthorized'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    def update(self, request, pk=None):
+        order = get_object_or_404(Order, id=pk)
+        
+        if request.user.groups.filter(name="Manager").exists():
+            serializer = OrderSerializers(order, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'error': "Unauthorizes"}, status=status.HTTP_403_FORBIDDEN)
+    
+    def destroy(self, request, pk=None):
+        
+        order = get_object_or_404(Order, id=pk)
+        
+        if request.user.groups.filter(name="Manager").exists() or request.user == order.user:
+            order.delete()
+            return Response({"message":"Order deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
+    
+    @action(detail=True, methods=["PATCH"], permission_classes=[IsAuthenticated])
+    def update_status(self, request, pk=None):
+        order = get_object_or_404(Order, id=pk)
+            
+        if request.user == order.delivery_crew:
+            order.status = request.data.get("status", order.status)
+            order.save()
+            return Response(OrderSerializers(order).data, status=status.HTTP_200_OK)
+        
+        return Response({"error": "Unauthorized"}, status=status.HTTP_403_FORBIDDEN)
